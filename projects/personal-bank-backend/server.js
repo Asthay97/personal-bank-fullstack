@@ -33,6 +33,7 @@ const initializeTransactionsStorage = () => {
   try {
     const data = fs.readFileSync(TRANSACTIONS_FILE, 'utf8');
     cachedTransactions = JSON.parse(data);
+    console.log("Loaded cached transactions:", cachedTransactions.length);
     return cachedTransactions;
   } catch (error) {
     console.error('Error reading transactions file:', error);
@@ -68,20 +69,15 @@ const addTransaction = (transaction) => {
   const transactions = [...cachedTransactions];
 
   // Check if transaction with this ID already exists
-  const existingIndex = transactions.findIndex(t => t.id === transaction.id);
+  const existingIndex = transactions.findIndex(t => t.txnId === transaction.txnId);
 
   if (existingIndex >= 0) {
     // Transaction already exists, update it if necessary
-    // This is important for adding inner transactions that come later
     const existingTxn = transactions[existingIndex];
 
-    // If the existing transaction doesn't have innerTxns but the new one does,
-    // or if the new one has more innerTxns, update it
-    if (
-      (transaction.innerTxns && transaction.innerTxns.length > 0) &&
-      (!existingTxn.innerTxns || existingTxn.innerTxns.length < transaction.innerTxns.length)
-    ) {
-      console.log("Updating transaction ${transaction.id} with inner transactions");
+    // Update with inner transactions if available
+    if (transaction.innerTxns && transaction.innerTxns.length > 0) {
+      console.log(`Updating transaction ${transaction.txnId} with ${transaction.innerTxns.length} inner transactions`);
       transactions[existingIndex] = {
         ...existingTxn,
         innerTxns: transaction.innerTxns
@@ -90,7 +86,7 @@ const addTransaction = (transaction) => {
       // Save updated transactions
       saveTransactions(transactions);
     } else {
-      console.log("Transaction ${transaction.id} already exists, no update needed");
+      console.log(`Transaction ${transaction.txnId} already exists, no update needed`);
     }
 
     return transactions;
@@ -108,48 +104,89 @@ const addTransaction = (transaction) => {
   return updatedTransactions;
 };
 
-// Process inner transactions for app calls
-const processInnerTransactions = (txn) => {
-  // Clone the transaction to avoid modifying the original
-  const processedTxn = { ...txn };
+// Transform Algorand transaction to our format
+const transformTransaction = (txn, ctx) => {
+  // Get the confirmed round number from the context or the transaction
+  const confirmedRound = ctx?.round || txn.confirmedRound || null;
 
-  // Initialize innerTxns array if not present
-  if (!processedTxn.innerTxns) {
-    processedTxn.innerTxns = [];
-  }
+  console.log(`Transforming transaction ${txn.id}, round: ${confirmedRound}`);
 
-  // Extract and process inner transactions if they exist
+  // Basic transaction data
+  const txnData = {
+    txnId: txn.id,
+    id: txn.id, // Keep both for backward compatibility
+    sender: txn.sender,
+    receiver: txn.paymentTransaction?.receiver || null,
+    amount: txn.paymentTransaction?.amount?.toString() || '0',
+    appId: txn.applicationTransaction?.applicationId?.toString() || null,
+    type: txn.txType || 'unknown',
+    round: confirmedRound ? confirmedRound.toString() : '0',
+    fee: txn.fee?.toString() || '1000',
+    timestamp: Math.floor(Date.now() / 1000), // Current timestamp
+    innerTxns: []
+  };
+
+  // Process inner transactions if they exist
   if (txn.innerTransactions && txn.innerTransactions.length > 0) {
-    // Map inner transactions to the same format as main transactions
-    processedTxn.innerTxns = txn.innerTransactions.map(innerTxn => ({
-      ...innerTxn,
-      isInner: true,
-    }));
+    console.log(`Processing ${txn.innerTransactions.length} inner transactions for ${txn.id}`);
+
+    txnData.innerTxns = txn.innerTransactions.map((innerTxn, index) => {
+      // Create a stable ID that doesn't include slashes
+      const innerTxnId = innerTxn.id || `inner_${txn.id}_${index}`;
+
+      console.log(`Processing inner transaction ${index} with ID: ${innerTxnId}`);
+      return {
+        txnId: innerTxnId,
+        id: innerTxnId,
+        sender: innerTxn.sender,
+        receiver: innerTxn.paymentTransaction?.receiver || null,
+        amount: innerTxn.paymentTransaction?.amount?.toString() || '0',
+        appId: innerTxn.applicationTransaction?.applicationId?.toString() || null,
+        type: innerTxn.txType || 'unknown',
+        round: confirmedRound ? confirmedRound.toString() : '0',
+        fee: innerTxn.fee?.toString() || '0',
+        timestamp: Math.floor(Date.now() / 1000),
+        isInner: true,
+        parentTxnId: txn.id // Add reference to parent transaction
+      };
+    });
   }
 
-  return processedTxn;
+  return txnData;
 };
 
-// Extract inner transactions from application transaction results
-const extractInnerTransactions = async (txn) => {
-  // If not an application call, no inner transactions to process
-  if (txn.txType !== 'appl') {
-    return txn;
-  }
-
-  const txnId = txn.id;
-
-  // For application calls, we need to query the algod indexer to get inner transactions
+// Handle a transaction event
+const handleTransaction = async (txn, ctx, algorand) => {
   try {
-    // If txn already has inner transactions field from the subscriber, process them
-    if (txn.innerTransactions && txn.innerTransactions.length > 0) {
-      return processInnerTransactions(txn);
+    console.log(`Processing transaction ${txn.id} from round ${ctx?.round}`);
+
+    // Transform to our format
+    const transformedTxn = transformTransaction(txn, ctx);
+
+    // Log inner transactions if present
+    if (transformedTxn.innerTxns && transformedTxn.innerTxns.length > 0) {
+      console.log(`Transaction ${txn.id} has ${transformedTxn.innerTxns.length} inner transactions`);
+      transformedTxn.innerTxns.forEach((inner, idx) => {
+        console.log(`  [${idx}] ${inner.txnId} - Type: ${inner.type}, Amount: ${inner.amount}, Round: ${inner.round}`);
+      });
     }
 
-    return processInnerTransactions(txn);
+    // Add to storage
+    const updatedTransactions = addTransaction(transformedTxn);
+
+    // Broadcast to connected clients
+    const updateMessage = JSON.stringify({
+      type: 'update',
+      transaction: transformedTxn,
+    });
+
+    sockets.forEach((ws) => {
+      if (ws.readyState === ws.OPEN) {
+        ws.send(updateMessage);
+      }
+    });
   } catch (error) {
-    console.error('Error fetching inner transactions:', error);
-    return txn;
+    console.error('Error handling transaction:', error);
   }
 };
 
@@ -158,7 +195,6 @@ cachedTransactions = initializeTransactionsStorage();
 
 // API endpoint to get latest transactions
 app.get('/api/transactions', (req, res) => {
-  // Return cached transactions directly instead of reading from file
   res.json(cachedTransactions);
 });
 
@@ -180,78 +216,74 @@ wss.on('connection', (ws) => {
 });
 
 async function main() {
-  const algorand = AlgorandClient.defaultLocalNet();
+  try {
+    const algorand = AlgorandClient.defaultLocalNet();
 
-  const subscriber = new AlgorandSubscriber(
-    {
-      filters: [{ name: 'accountTxns', filter: { sender: ACCOUNT_ADDRESS } }],
-      watermarkPersistence: {
-        get: async () => 0n,
-        set: async (newWatermark) => {},
+    // Configure the subscriber with proper options for inner transactions
+    const subscriber = new AlgorandSubscriber(
+      {
+        // Main filter for our account transactions
+        filters: [
+          {
+            name: 'account',
+            filter: {
+              address: ACCOUNT_ADDRESS,
+              // Include both incoming and outgoing transactions
+              includeIncomingTransactions: true,
+              includeOutgoingTransactions: true,
+              // Explicitly include inner transactions
+              includeInnerTransactions: true
+            }
+          }
+        ],
+        watermarkPersistence: {
+          get: async () => 0n,
+          set: async () => {},
+        },
+        syncBehaviour: 'skip-sync-newest',
+        waitForBlockWhenAtTip: true,
+        // Enable detailed transaction data including inner txs
+        maxRoundsToSync: 10000n, // Limited history sync to avoid overload
+        onMaxRoundsSyncStart: () => console.log('Starting limited history sync...'),
+        onMaxRoundsSyncComplete: () => console.log('Limited history sync complete'),
       },
-      syncBehaviour: 'skip-sync-newest', // Prevents overload at startup
-      waitForBlockWhenAtTip: true,
-    },
-    algorand.client.algod
-  );
+      algorand.client.algod,
+      algorand.client.indexer // Make sure indexer is used for complete transaction data
+    );
 
-  subscriber.on('accountTxns', async (txn) => {
-    console.log('Transaction received:', txn.id, 'Round:', txn.confirmedRound?.toString());
+    // Register event handler for account transactions
+    subscriber.on('account', async (txn, ctx) => {
+      console.log(`Received transaction ${txn.id} in round ${ctx?.round}`);
 
-    const transactionData = {
-      id: txn.id,
-      txnId: txn.id,
-      sender: txn.sender,
-      receiver: txn.paymentTransaction?.receiver || null,
-      amount: txn.paymentTransaction?.amount?.toString() || '0',
-      appId: txn.applicationTransaction?.applicationId?.toString() || null,
-      type: txn.txType,
-      round: txn.confirmedRound?.toString() || '0',
-      fee: txn.fee?.toString() || '1000',
-      timestamp: Math.floor(Date.now() / 1000), // Current timestamp in seconds
-      innerTransactions: txn.innerTransactions || []
-    };
+      // Only process transactions that involve our account
+      if (txn.sender === ACCOUNT_ADDRESS ||
+          txn.paymentTransaction?.receiver === ACCOUNT_ADDRESS) {
+        await handleTransaction(txn, ctx, algorand);
+      } else {
+        // Check if our account is involved in inner transactions
+        const hasRelevantInnerTxn = txn.innerTransactions?.some(inner =>
+          inner.sender === ACCOUNT_ADDRESS ||
+          inner.paymentTransaction?.receiver === ACCOUNT_ADDRESS
+        );
 
-    // First, process the transaction to extract inner transactions if they exist
-    const processedTxn = await extractInnerTransactions(transactionData);
-
-    // Add to storage
-    const updatedTransactions = addTransaction(processedTxn);
-
-    // Send the new transaction to clients
-    const updateMessage = JSON.stringify({
-      type: 'update',
-      transaction: processedTxn,
-    });
-
-    sockets.forEach((ws) => {
-      if (ws.readyState === ws.OPEN) {
-        ws.send(updateMessage);
+        if (hasRelevantInnerTxn) {
+          console.log(`Transaction ${txn.id} has inner transactions involving our account`);
+          await handleTransaction(txn, ctx, algorand);
+        }
       }
     });
-  });
 
-  // Special listener for account-involved transactions (might capture inner transactions)
-  subscriber.on('accountTransactionsInvolved', async (txn) => {
-    // This might catch transactions where our account is involved but not the sender
-    // This is useful for inner transactions where our account is the receiver
-    console.log('Transaction involved:', txn.id);
+    // Error handler
+    subscriber.onError((error) => {
+      console.error('Subscriber error:', error);
+    });
 
-    // Process this transaction if it's not already processed as a main transaction
-    // This is a simplified approach - in a real app you might need more logic
-    const existingIndex = cachedTransactions.findIndex(t => t.id === txn.id);
-    if (existingIndex === -1) {
-      // This is a new transaction, process it
-      // However, for inner transactions, we typically want to attach them to their parent
-      // So we need additional logic to determine the parent transaction
-    }
-  });
-
-  subscriber.onError((e) => {
-    console.error('Subscriber error:', e);
-  });
-
-  subscriber.start();
+    console.log('Starting transaction subscriber...');
+    await subscriber.start();
+    console.log('Transaction subscriber started successfully');
+  } catch (error) {
+    console.error('Failed to start transaction subscriber:', error);
+  }
 }
 
 main().catch(console.error);

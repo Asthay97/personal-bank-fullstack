@@ -36,53 +36,64 @@ const Home: React.FC = () => {
 
       {/* Main Content */}
       <div className="flex flex-col lg:flex-row flex-1 p-4 gap-4 max-w-7xl mx-auto w-full">
-  <div className="flex flex-col gap-4 lg:w-1/3">
-    <div className="bg-white shadow rounded p-6 text-center"> {/* Smaller padding */}
-      {activeAddress ? (
-        <div className="flex flex-col gap-3">
-          <button className="btn btn-primary" onClick={() => { setActionType('deposit'); toggleAppCallsModal(); }}>
-            Deposit
-          </button>
-          <button className="btn btn-secondary" onClick={() => { setActionType('withdraw'); toggleAppCallsModal(); }}>
-            Withdraw
-          </button>
-          <button className="btn btn-accent" onClick={toggleDemoModal}>
-            Transactions Demo
-          </button>
+        <div className="flex flex-col gap-4 lg:w-1/3">
+          <div className="bg-white shadow rounded p-6 text-center"> {/* Smaller padding */}
+            {activeAddress ? (
+              <div className="flex flex-col gap-3">
+                <button className="btn btn-primary" onClick={() => { setActionType('deposit'); toggleAppCallsModal(); }}>
+                  Deposit
+                </button>
+                <button className="btn btn-secondary" onClick={() => { setActionType('withdraw'); toggleAppCallsModal(); }}>
+                  Withdraw
+                </button>
+                <button className="btn btn-accent" onClick={toggleDemoModal}>
+                  Transactions Demo
+                </button>
+              </div>
+            ) : (
+              <p className="text-gray-700">Please connect your wallet to begin.</p>
+            )}
+
+            <div className="divider" />
+
+            <a
+              className="btn btn-outline"
+              target="_blank"
+              rel="noopener noreferrer"
+              href="https://dev.algorand.co/"
+            >
+              Learn more
+            </a>
+          </div>
+
+          <ConnectWallet openModal={openWalletModal} closeModal={toggleWalletModal} />
+          <Transact openModal={openDemoModal} setModalState={setOpenDemoModal} />
+          <AppCalls openModal={appCallsDemoModal} setModalState={setAppCallsDemoModal} actionType={actionType} />
         </div>
-      ) : (
-        <p className="text-gray-700">Please connect your wallet to begin.</p>
-      )}
 
-      <div className="divider" />
+        {activeAddress ? (
+          <div className="lg:w-2/3">
 
-      <a
-        className="btn btn-outline"
-        target="_blank"
-        rel="noopener noreferrer"
-        href="https://dev.algorand.co/"
-      >
-        Learn more
-      </a>
+
+<div className="bg-white shadow rounded p-4 h-[700px] overflow-hidden flex flex-col">
+  <div className="flex justify-center">
+    <h2 className="font-semibold mb-3 text-gray-800 uppercase tracking-wider">
+      Live Transactions
+    </h2>
     </div>
 
-    <ConnectWallet openModal={openWalletModal} closeModal={toggleWalletModal} />
-    <Transact openModal={openDemoModal} setModalState={setOpenDemoModal} />
-    <AppCalls openModal={appCallsDemoModal} setModalState={setAppCallsDemoModal} actionType={actionType} />
-  </div>
-
-  {activeAddress ? (
-  <div className="lg:w-2/3">
-    <div className="bg-white shadow rounded p-4 h-[400px] overflow-y-auto">
-      <h2 className="text-xl font-semibold mb-2 text-gray-800">LIVE TRANSACTIONS</h2>
-      <TransactionList address={activeAddress} />
-    </div>
-  </div>
-) : (
-  <p className="text-gray-700">Please connect your wallet to see transactions.</p>
-)}
-</div>
-
+              {/* <div className="divider" /> */}
+              {/* <div className="flex-1 overflow-y-auto"> */}
+                <TransactionList address={activeAddress} />
+              {/* </div> */}
+            </div>
+          </div>
+        ) : (
+          <div className="lg:w-2/3 bg-white shadow rounded p-6 flex items-center justify-center">
+            <p className="text-gray-700">Please connect your wallet to see transactions.</p>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

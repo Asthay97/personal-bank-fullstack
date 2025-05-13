@@ -108,30 +108,48 @@ const AppCalls = ({ openModal, setModalState, actionType }: AppCallsInterface) =
 
   return (
     <dialog id="appcalls_modal" className={`modal ${openModal ? 'modal-open' : ''} bg-slate-200`}>
-        <form method="dialog" className="modal-box">
-          <h3 className="font-bold text-lg capitalize">
-          {actionType} to your Algorand Personal Bank
-        </h3>
-        <br />
-        {actionType === 'deposit' && (
-          <input
-            type="text"
-            placeholder="Provide amount"
-            className="input input-bordered w-full"
-            value={contractInput}
-            onChange={(e) => setContractInput(e.target.value)}
-          />
+  <form method="dialog" className="modal-box">
+    <h3 className="font-bold text-lg capitalize">
+      {actionType} to your Algorand Personal Bank
+    </h3>
+    <br />
+
+    {actionType === 'deposit' && (
+      <input
+        type="text"
+        placeholder="Provide amount"
+        className="input input-bordered w-full"
+        value={contractInput}
+        onChange={(e) => setContractInput(e.target.value)}
+      />
+    )}
+
+    {actionType === 'withdraw' && (
+      <p className="py-4 text-center">
+        Do you want to withdraw all of your balance?
+      </p>
+    )}
+
+    <div className="modal-action">
+      <button type="button" className="btn" onClick={() => setModalState(false)}>
+        Close
+      </button>
+      <button
+        type="submit"
+        className={`btn ${actionType === 'withdraw' ? 'btn-error' : 'btn-primary'}`}
+        onClick={sendAppCall}
+        disabled={loading}
+      >
+        {loading ? (
+          <span className="loading loading-spinner" />
+        ) : (
+          actionType === 'withdraw' ? 'Confirm Withdraw All' : `Send ${actionType}`
         )}
-        <div className="modal-action">
-          <button type="button" className="btn" onClick={() => setModalState(false)}>
-            Close
-          </button>
-          <button type="submit" className="btn btn-primary" onClick={sendAppCall}>
-            {loading ? <span className="loading loading-spinner" /> : `Send ${actionType}`}
-          </button>
-        </div>
-      </form>
-    </dialog>
+      </button>
+    </div>
+  </form>
+</dialog>
+
   )
 }
 
