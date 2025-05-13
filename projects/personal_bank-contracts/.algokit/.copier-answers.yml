@@ -1,0 +1,9 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_commit: 0.3.2
+_src_path: gh:algorandfoundation/algokit-typescript-template
+author_email: 75947851+Asthay97@users.noreply.github.com
+author_name: Astha Yadav
+contract_name: personal_bank
+preset_name: production
+project_name: personal_bank-contracts
+

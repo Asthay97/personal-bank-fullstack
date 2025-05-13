@@ -1,0 +1,38 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - '.vscode/**'
+      - '.idea/**'
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  personal_bank-contracts-validate:
+    name: Run personal_bank-contracts release
+    secrets: inherit
+    uses: ./.github/workflows/personal_bank-contracts-ci.yaml
+
+  personal_bank-contracts-release:
+    name: Run personal_bank-contracts release
+    secrets: inherit
+    uses: ./.github/workflows/personal_bank-contracts-cd.yaml
+    needs: personal_bank-contracts-validate
+
+  personal_bank-frontend-validate:
+    name: Run personal_bank-frontend release
+    secrets: inherit
+    uses: ./.github/workflows/personal_bank-frontend-ci.yaml
+
+  personal_bank-frontend-release:
+    name: Run personal_bank-frontend release
+    secrets: inherit
+    uses: ./.github/workflows/personal_bank-frontend-cd.yaml
+    needs: personal_bank-frontend-validate

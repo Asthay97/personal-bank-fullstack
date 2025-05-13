@@ -1,0 +1,14 @@
+name: Pull Request validation
+
+on: [pull_request]
+
+
+jobs:
+  personal_bank-contracts-ci:
+    name: Run personal_bank-contracts validation
+    uses: ./.github/workflows/personal_bank-contracts-ci.yaml
+
+  personal_bank-frontend-ci:
+    name: Run personal_bank-frontend validation
+    uses: ./.github/workflows/personal_bank-frontend-ci.yaml
+

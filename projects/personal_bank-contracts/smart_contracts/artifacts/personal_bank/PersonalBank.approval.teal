@@ -1,0 +1,203 @@
+#pragma version 10
+#pragma typetrack false
+
+// @algorandfoundation/algorand-typescript/arc4/index.d.ts::Contract.approvalProgram() -> uint64:
+main:
+    intcblock 1 0
+    bytecblock 0x151f7c75
+    // smart_contracts/personal_bank/contract.algo.ts:16
+    // export class PersonalBank extends Contract {
+    txn NumAppArgs
+    bz main_bare_routing@7
+    pushbytess 0x3298e7c0 0x3a395f2b // method "deposit(pay)uint64", method "withdraw()uint64"
+    txna ApplicationArgs 0
+    match main_deposit_route@3 main_withdraw_route@4
+
+main_after_if_else@11:
+    // smart_contracts/personal_bank/contract.algo.ts:16
+    // export class PersonalBank extends Contract {
+    intc_1 // 0
+    return
+
+main_withdraw_route@4:
+    // smart_contracts/personal_bank/contract.algo.ts:51
+    // @abimethod()
+    txn OnCompletion
+    !
+    assert // OnCompletion is not NoOp
+    txn ApplicationID
+    assert // can only call when not creating
+    callsub withdraw
+    itob
+    bytec_0 // 0x151f7c75
+    swap
+    concat
+    log
+    intc_0 // 1
+    return
+
+main_deposit_route@3:
+    // smart_contracts/personal_bank/contract.algo.ts:28
+    // @abimethod()
+    txn OnCompletion
+    !
+    assert // OnCompletion is not NoOp
+    txn ApplicationID
+    assert // can only call when not creating
+    // smart_contracts/personal_bank/contract.algo.ts:16
+    // export class PersonalBank extends Contract {
+    txn GroupIndex
+    intc_0 // 1
+    -
+    dup
+    gtxns TypeEnum
+    intc_0 // pay
+    ==
+    assert // transaction type is pay
+    // smart_contracts/personal_bank/contract.algo.ts:28
+    // @abimethod()
+    callsub deposit
+    itob
+    bytec_0 // 0x151f7c75
+    swap
+    concat
+    log
+    intc_0 // 1
+    return
+
+main_bare_routing@7:
+    // smart_contracts/personal_bank/contract.algo.ts:16
+    // export class PersonalBank extends Contract {
+    txn OnCompletion
+    bnz main_after_if_else@11
+    txn ApplicationID
+    !
+    assert // can only call when creating
+    intc_0 // 1
+    return
+
+
+// smart_contracts/personal_bank/contract.algo.ts::PersonalBank.deposit(payTxn: uint64) -> uint64:
+deposit:
+    // smart_contracts/personal_bank/contract.algo.ts:28-29
+    // @abimethod()
+    // public deposit(payTxn: gtxn.PaymentTxn) {
+    proto 1 1
+    // smart_contracts/personal_bank/contract.algo.ts:30
+    // assert(payTxn.receiver === Global.currentApplicationAddress, 'Receiver must be the contract address')
+    frame_dig -1
+    gtxns Receiver
+    global CurrentApplicationAddress
+    ==
+    assert // Receiver must be the contract address
+    // smart_contracts/personal_bank/contract.algo.ts:31
+    // assert(payTxn.amount > 0, 'Deposit amount must be greater than zero')
+    frame_dig -1
+    gtxns Amount
+    dup
+    assert // Deposit amount must be greater than zero
+    // smart_contracts/personal_bank/contract.algo.ts:34
+    // const isDeposited = this.depositors(payTxn.sender).exists
+    frame_dig -1
+    gtxns Sender
+    dup
+    box_len
+    bury 1
+    // smart_contracts/personal_bank/contract.algo.ts:36
+    // if (isDeposited) {
+    bz deposit_else_body@2
+    // smart_contracts/personal_bank/contract.algo.ts:37
+    // this.depositors(payTxn.sender).value += depositAmount
+    frame_dig 1
+    dup
+    box_get
+    swap
+    btoi
+    swap
+    assert // Box must have value
+    frame_dig 0
+    +
+    itob
+    box_put
+
+deposit_after_if_else@3:
+    // smart_contracts/personal_bank/contract.algo.ts:42
+    // return this.depositors(payTxn.sender).value
+    frame_dig 1
+    box_get
+    swap
+    btoi
+    swap
+    assert // Box must have value
+    frame_bury 0
+    retsub
+
+deposit_else_body@2:
+    // smart_contracts/personal_bank/contract.algo.ts:39
+    // this.depositors(payTxn.sender).value = depositAmount
+    frame_dig 0
+    itob
+    frame_dig 1
+    swap
+    box_put
+    b deposit_after_if_else@3
+
+
+// smart_contracts/personal_bank/contract.algo.ts::PersonalBank.withdraw() -> uint64:
+withdraw:
+    // smart_contracts/personal_bank/contract.algo.ts:53
+    // const [depositedAmount, isDeposited] = this.depositors(Txn.sender).maybe()
+    txn Sender
+    box_get
+    swap
+    btoi
+    // smart_contracts/personal_bank/contract.algo.ts:54
+    // assert(isDeposited, 'No deposits found for this account')
+    swap
+    assert // No deposits found for this account
+    // smart_contracts/personal_bank/contract.algo.ts:56-62
+    // const result = itxn
+    //   .payment({
+    //     receiver: Txn.sender,
+    //     amount: depositedAmount,
+    //     fee: 0,
+    //   })
+    //   .submit()
+    itxn_begin
+    // smart_contracts/personal_bank/contract.algo.ts:58
+    // receiver: Txn.sender,
+    txn Sender
+    itxn_field Receiver
+    itxn_field Amount
+    // smart_contracts/personal_bank/contract.algo.ts:56-61
+    // const result = itxn
+    //   .payment({
+    //     receiver: Txn.sender,
+    //     amount: depositedAmount,
+    //     fee: 0,
+    //   })
+    intc_0 // 1
+    itxn_field TypeEnum
+    // smart_contracts/personal_bank/contract.algo.ts:60
+    // fee: 0,
+    intc_1 // 0
+    itxn_field Fee
+    // smart_contracts/personal_bank/contract.algo.ts:56-62
+    // const result = itxn
+    //   .payment({
+    //     receiver: Txn.sender,
+    //     amount: depositedAmount,
+    //     fee: 0,
+    //   })
+    //   .submit()
+    itxn_submit
+    itxn Amount
+    // smart_contracts/personal_bank/contract.algo.ts:64
+    // this.depositors(Txn.sender).value = 0
+    txn Sender
+    intc_1 // 0
+    itob
+    box_put
+    // smart_contracts/personal_bank/contract.algo.ts:66
+    // return result.amount
+    retsub
